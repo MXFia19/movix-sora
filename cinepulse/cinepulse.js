@@ -1,10 +1,42 @@
 // ==========================================================
-// MODULE SORA : CINEPULSE
+// MODULE SORA : CINEPULSE (AUTO-REFRESH VERSION)
 // ==========================================================
 const TMDB_API_KEY = "f3d757824f08ea2cff45eb8f47ca3a1e";
 
-// ⚠️ METTRE À JOUR CE TOKEN S'IL EXPIRE
-const CINEPULSE_TOKEN = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VySWQiOiJhMDk0ODQ1MC0wMjdmLTRiYmUtOTU1NC0yNTVjY2ZhNDljM2EiLCJlbWFpbCI6Imt1cnptYXRoaXM0QGdtYWlsLmNvbSIsInN0YXR1cyI6ImZyZWUiLCJzZXNzaW9uSWQiOiI0MGFiNWIwZi1mOGU1LTRiMmYtYjVkNC1mZTYzZjdkNjEzNGUiLCJwcm9maWxlSWQiOiJhNTg5YzNmMi1iOWZhLTQxOWEtOTVhNC05MjlhNTEzNGY4ZjkiLCJpYXQiOjE3NzE2ODIzNTEsImV4cCI6MTc3MTY4MzI1MSwiYXVkIjoiY2luZXB1bHNlLWZyb250ZW5kIiwiaXNzIjoiY2luZXB1bHNlLWJhY2tlbmQtYXBpIn0.IdxQzURj9kyPuSq2XcNzzJaI5WYb3NXNXHAlqm3c0Hw";
+// La clé maître (Expire dans ~30 jours, à renouveler une fois par mois)
+const REFRESH_TOKEN = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VySWQiOiI5ODExNjVjYi1kYzJlLTQzNTAtYjM0YS1lM2FlNzA1NjYwOTkiLCJzZXNzaW9uSWQiOiJlN2ViNzQxYy1lMTg3LTRmN2YtYjQ0Zi1mODhhM2QzODI0MTMiLCJpYXQiOjE3NzE2ODg5NTEsImV4cCI6MTc3NDI4MDk1MSwiYXVkIjoiY2luZXB1bHNlLWZyb250ZW5kIiwiaXNzIjoiY2luZXB1bHNlLWJhY2tlbmQtYXBpIn0._U9kiwQU63HqB0oll85UpEGj5bOvTXcdCrDFLrMi1ow";
+
+// --- FONCTION MAGIQUE : GÉNÉRATEUR DE JETON ---
+async function getFreshToken() {
+    try {
+        console.log("[Cinepulse] Demande d'un nouveau pass d'accès...");
+        const response = await soraFetch("https://apiapi.cinepulse.lol/api/v2/auth/refresh-auth-token", {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'Origin': 'https://cinepulse.lol',
+                'Referer': 'https://cinepulse.lol/'
+            },
+            // Le nom du paramètre exact peut varier, on tente le standard
+            body: JSON.stringify({ refreshToken: REFRESH_TOKEN })
+        });
+        
+        const data = await response.json();
+        
+        // On récupère le nouveau jeton tout neuf
+        const newToken = data.accessToken || data.token;
+        if (newToken) {
+            console.log("[Cinepulse] Nouveau pass obtenu avec succès !");
+            return newToken;
+        } else {
+            console.log("[Cinepulse] Échec de la récupération du pass :", JSON.stringify(data));
+            return null;
+        }
+    } catch (e) {
+        console.log("[Cinepulse] Erreur fatale du générateur de jeton :", e);
+        return null;
+    }
+}
 
 // --- OUTILS DE SÉCURITÉ CINEPULSE (REVERSE-ENGINEERED) ---
 
@@ -203,7 +235,7 @@ async function extractEpisodes(url) {
     }    
 }
 
-// --- 4. EXTRACTION VIDÉO (AVEC LE CRYPTAGE CINEPULSE) ---
+// --- 4. EXTRACTION VIDÉO (AVEC AUTO-LOGIN + CRYPTAGE) ---
 async function extractStreamUrl(url) {
     try {
         let streams = [];
@@ -216,13 +248,19 @@ async function extractStreamUrl(url) {
             const parts = url.split('/');
             showId = parts[0]; 
         } else {
-            const parts = url.split('/');
+            const parts = split('/');
             showId = parts[0];         
             seasonNumber = parts[1];   
             episodeNumber = parts[2];  
         }
 
-        // 1. Préparation de l'objet de base
+        // 1. OBTENTION DU NOUVEAU JETON 
+        const freshAccessToken = await getFreshToken();
+        if (!freshAccessToken) {
+            throw new Error("Impossible de rafraîchir le jeton d'accès");
+        }
+
+        // 2. Préparation de l'objet de base
         const payload = {
             tmdbId: showId,
             type: isMovie ? "movie" : "tv",
@@ -230,20 +268,20 @@ async function extractStreamUrl(url) {
             episode: isMovie ? undefined : parseInt(episodeNumber)
         };
 
-        // 2. CRYPTAGE DES PARAMÈTRES COMME SUR LE SITE
+        // 3. CRYPTAGE DES PARAMÈTRES
         const encryptedParams = obfuscateParams(payload);
         
-        // 3. Création de l'URL finale avec les paramètres
+        // 4. Création de l'URL
         const queryString = Object.keys(encryptedParams).map(key => key + '=' + encodeURIComponent(encryptedParams[key])).join('&');
         const apiUrl = `https://apiapi.cinepulse.lol/watch/sources?${queryString}`;
 
         console.log("[Cinepulse] URL d'attaque générée :", apiUrl);
 
-        // 4. Exécution de la requête avec l'armure complète (Headers)
+        // 5. Exécution de la requête avec le jeton FRAIS
         const response = await soraFetch(apiUrl, {
             method: 'GET',
             headers: {
-                "Authorization": `Bearer ${CINEPULSE_TOKEN}`,
+                "Authorization": `Bearer ${freshAccessToken}`,
                 "X-Client-Version": "3.5.2",
                 "X-Screen-Size": soraBtoa("1920x1080"),
                 "X-Request-Time": Date.now().toString(),
@@ -254,9 +292,8 @@ async function extractStreamUrl(url) {
         });
         
         const data = await response.json();
-        console.log("[Cinepulse] Réponse API :", JSON.stringify(data));
-
-        // 5. Recherche Intelligente des Liens dans la réponse
+        
+        // 6. Extraction des Liens
         let rawStreams = [];
         function findStreams(obj, currentName = "Serveur Cinepulse") {
             if (obj === null || typeof obj !== 'object') return;
@@ -284,7 +321,6 @@ async function extractStreamUrl(url) {
         }
         findStreams(data);
 
-        // On enlève les doublons
         let seenUrls = new Set();
         for (let item of rawStreams) {
             if (!seenUrls.has(item.url)) {
