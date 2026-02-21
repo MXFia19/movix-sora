@@ -10,7 +10,7 @@
     "language": "French",
     "streamType": "HLS",
     "quality": "1080p",
-    "baseUrl": "https://nakios.site/",
+    "baseUrl": "https://nakios.online/",
     "searchBaseUrl": "https://api.themoviedb.org/3/search/multi?api_key=f3d757824f08ea2cff45eb8f47ca3a1e&query=%s&language=fr-FR&page=1&include_adult=false&sort_by=popularity.desc",
     "scriptUrl": "https://raw.githubusercontent.com/MXFia19/nakios-sora/refs/heads/main/nakios.js",
     "type": "shows/movies",
