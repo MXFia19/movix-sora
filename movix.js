@@ -186,12 +186,16 @@ async function extractStreamUrl(url) {
 
         rawUrls = [...new Set(rawUrls)]; // Supprime les doublons
         
-        // Construction des streams finaux avec le Proxy
+// Construction des streams finaux avec le Proxy
         for (let rawUrl of rawUrls) {
             let finalUrl = rawUrl;
             
-            // Passage dans le proxy anti-blocage de Nakios si ce n'est pas déjà le cas
-            if (!rawUrl.includes('api.nakios.site/api/sources/proxy')) {
+            // Correction du formatage de l'URL pour éviter le "double proxy"
+            if (rawUrl.startsWith('/')) {
+                // Si l'API renvoie un chemin relatif (ex: /api/sources/proxy?url=...)
+                finalUrl = `https://api.nakios.site${rawUrl}`;
+            } else if (!rawUrl.includes('nakios.site')) {
+                // Si l'API renvoie un lien brut externe (ex: https://fsvid.lol/...)
                 finalUrl = `https://api.nakios.site/api/sources/proxy?url=${encodeURIComponent(rawUrl)}`;
             }
 
