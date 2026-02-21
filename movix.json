@@ -1,16 +1,16 @@
 {
-    "sourceName": "Movix",
-    "iconUrl": "https://movix.blog/movix.png",
+    "sourceName": "Nakios",
+    "iconUrl": "https://nakios.site/NAKIOS-logo.png",
     "author": {
         "name": "MXFia19",
         "icon": "",
         "url": "https://github.com/MXFia19"
     },
-    "version": "1.0.2",
+    "version": "1.0.0",
     "language": "French",
     "streamType": "HLS",
     "quality": "1080p",
-    "baseUrl": "https://movix.blog/",
+    "baseUrl": "https://nakios.site/",
     "searchBaseUrl": "https://api.themoviedb.org/3/search/multi?api_key=f3d757824f08ea2cff45eb8f47ca3a1e&query=%s&language=fr-FR&page=1&include_adult=false&sort_by=popularity.desc",
     "scriptUrl": "https://raw.githubusercontent.com/MXFia19/movix-sora/refs/heads/main/movix.js",
     "type": "shows/movies",
