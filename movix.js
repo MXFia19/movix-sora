@@ -407,12 +407,21 @@ async function extractStreamUrl(url) {
             }
         }
 
-        if (episodeNumber === "movie") {
-            const response = await soraFetch(`https://api.movix.club/api/fstream/movie/${showId}`, {
-                headers: {
-                    "Referer": "https://movix.blog/"
-                }
-            });
+    const response = await soraFetch(`https://api.movix.club/api/fstream/movie/${showId}`, {
+        headers: {
+            "Referer": "https://movix.blog/"
+        }
+    });
+
+    let data = {};
+    try {
+        const text = await response.text(); // On lit en texte d'abord
+        data = JSON.parse(text);            // On essaie de convertir en JSON
+    } catch (e) {
+        console.log("Erreur Movix : Le serveur a renvoyé du HTML au lieu de JSON.");
+        // Le serveur Movix a planté ou a un pare-feu, on renvoie ce qu'on a déjà trouvé sur frembed
+        return JSON.stringify({ streams: streams, subtitles: "" }); 
+    }
             const data = await response.json();
     
             console.log(JSON.stringify(data));
@@ -507,12 +516,20 @@ async function extractStreamUrl(url) {
                 }
             }
         } else {
-            const response = await soraFetch(`https://api.movix.club/api/fstream/tv/${showId}/season/${seasonNumber}`, {
-                headers: {
-                    "Referer": "https://movix.blog/"
-                }
-            });
-            const data = await response.json();
+          const response = await soraFetch(`https://api.movix.club/api/fstream/tv/${showId}/season/${seasonNumber}`, {
+    headers: {
+        "Referer": "https://movix.blog/"
+    }
+});
+
+let data = {};
+try {
+    const text = await response.text();
+    data = JSON.parse(text);
+} catch (e) {
+    console.log("Erreur Movix (Série) : HTML reçu au lieu de JSON.");
+    return JSON.stringify({ streams: streams, subtitles: "" });
+}
     
             console.log(JSON.stringify(data));
             console.log(JSON.stringify(data?.episodes));
