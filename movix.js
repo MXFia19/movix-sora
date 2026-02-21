@@ -139,7 +139,7 @@ async function extractStreamUrl(url) {
         let episodeNumber = "";
         let isMovie = url.includes('movie');
 
-        // Récupération des IDs depuis le href de l'épisode
+        // Récupération des IDs depuis le href
         if (isMovie) {
             const parts = url.split('/');
             showId = parts[0]; 
@@ -173,34 +173,72 @@ async function extractStreamUrl(url) {
             return JSON.stringify({ streams: [], subtitles: "" });
         }
         
-        // Fouille intelligente du JSON pour trouver les liens vidéo
-        let rawUrls = [];
-        JSON.stringify(data, (key, value) => {
-            if (typeof value === 'string' && (value.includes('.m3u8') || value.includes('.mp4') || value.includes('fsvid.lol'))) {
-                rawUrls.push(value);
-            } else if (typeof value === 'string' && value.startsWith('http') && (key === 'url' || key === 'link' || key === 'file')) {
-                rawUrls.push(value);
-            }
-            return value;
-        });
-
-        rawUrls = [...new Set(rawUrls)]; // Supprime les doublons
+        // --- NOUVEAU : FOUILLE TRÈS INTELLIGENTE DU JSON ---
+        let rawStreams = [];
         
-// Construction des streams finaux avec le Proxy
-        for (let rawUrl of rawUrls) {
-            let finalUrl = rawUrl;
+        function findStreams(obj, currentName = "Serveur Nakios") {
+            if (obj === null || typeof obj !== 'object') return;
             
-            // Correction du formatage de l'URL pour éviter le "double proxy"
-            if (rawUrl.startsWith('/')) {
-                // Si l'API renvoie un chemin relatif (ex: /api/sources/proxy?url=...)
-                finalUrl = `https://api.nakios.site${rawUrl}`;
-            } else if (!rawUrl.includes('nakios.site')) {
-                // Si l'API renvoie un lien brut externe (ex: https://fsvid.lol/...)
-                finalUrl = `https://api.nakios.site/api/sources/proxy?url=${encodeURIComponent(rawUrl)}`;
+            // Si c'est un tableau (ex: une liste de serveurs), on fouille chaque élément
+            if (Array.isArray(obj)) {
+                obj.forEach(item => findStreams(item, currentName));
+                return;
+            }
+            
+            // Si on est dans un objet, on cherche un nom ou une langue potentielle
+            let name = obj.name || obj.title || obj.server || obj.language || obj.lang || currentName;
+            
+            for (const [key, value] of Object.entries(obj)) {
+                let passName = name;
+                
+                // Si la clé s'appelle "VF" ou "VOSTFR", on l'utilise directement comme nom !
+                if (["VF", "VOSTFR", "VFF", "VFQ", "FRENCH", "ENGLISH"].includes(key.toUpperCase())) {
+                    passName = key.toUpperCase();
+                }
+                
+                if (typeof value === 'string') {
+                    let isVideoUrl = value.includes('.m3u8') || value.includes('.mp4') || value.includes('fsvid.lol');
+                    let isApiUrl = value.startsWith('http') && ['url', 'link', 'file', 'src'].includes(key.toLowerCase());
+                    
+                    if (isVideoUrl || isApiUrl) {
+                        let finalName = passName;
+                        // On ajoute la qualité si elle est précisée (ex: "VF - 1080p")
+                        if (obj.quality) finalName += ` - ${obj.quality}`;
+                        
+                        rawStreams.push({ url: value, name: finalName });
+                    }
+                } else if (typeof value === 'object') {
+                    // On continue de creuser plus profond dans le JSON
+                    findStreams(value, passName);
+                }
+            }
+        }
+
+        // On lance la recherche sur tout le JSON
+        findStreams(data);
+
+        // On supprime les doublons basés sur l'URL
+        let uniqueStreams = [];
+        let seenUrls = new Set();
+        for (let item of rawStreams) {
+            if (!seenUrls.has(item.url)) {
+                seenUrls.add(item.url);
+                uniqueStreams.push(item);
+            }
+        }
+        
+        // Construction des streams finaux avec le Proxy
+        for (let item of uniqueStreams) {
+            let finalUrl = item.url;
+            
+            if (item.url.startsWith('/')) {
+                finalUrl = `https://api.nakios.site${item.url}`;
+            } else if (!item.url.includes('nakios.site')) {
+                finalUrl = `https://api.nakios.site/api/sources/proxy?url=${encodeURIComponent(item.url)}`;
             }
 
             streams.push({
-                title: "Serveur Nakios",
+                title: item.name, // <-- LE VRAI NOM DU SERVEUR EST INJECTÉ ICI
                 streamUrl: finalUrl,
                 headers: {
                     "Origin": "https://nakios.site",
