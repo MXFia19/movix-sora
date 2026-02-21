@@ -1,9 +1,5 @@
-// ==========================================================
-// MODULE SORA : NAKIOS (via TMDB)
-// ==========================================================
 const TMDB_API_KEY = "f3d757824f08ea2cff45eb8f47ca3a1e";
 
-// --- 1. RECHERCHE (via TMDB) ---
 async function searchResults(keyword) {
     try {
         const encodedKeyword = encodeURIComponent(keyword);
@@ -27,7 +23,6 @@ async function searchResults(keyword) {
             }
         });
 
-        // Supprime les résultats vides
         return JSON.stringify(transformedResults.filter(Boolean));
     } catch (error) {
         console.log('Fetch error in searchResults: ' + error);
@@ -35,7 +30,6 @@ async function searchResults(keyword) {
     }
 }
 
-// --- 2. DÉTAILS DU MÉDIA (via TMDB) ---
 async function extractDetails(url) {
     try {
         if(url.includes('movie')) {
@@ -81,7 +75,6 @@ async function extractDetails(url) {
     }
 }
 
-// --- 3. LISTE DES ÉPISODES (via TMDB) ---
 async function extractEpisodes(url) {
     try {
         if(url.includes('movie')) {
@@ -89,7 +82,6 @@ async function extractEpisodes(url) {
             if (!match) throw new Error("Invalid URL format");
             const movieId = match[1];
             
-            // Si c'est un film, on renvoie un seul bouton
             return JSON.stringify([
                 { href: `${movieId}/movie`, number: 1, title: "Film Complet" }
             ]);
@@ -102,11 +94,10 @@ async function extractEpisodes(url) {
             const showData = await showResponseText.json();
             
             let allEpisodes = [];
-            // On boucle sur chaque saison
             for (const season of showData.seasons) {
                 const seasonNumber = season.season_number;
 
-                if(seasonNumber === 0) continue; // On ignore les épisodes spéciaux
+                if(seasonNumber === 0) continue; 
                 
                 const seasonResponseText = await soraFetch(`https://api.themoviedb.org/3/tv/${showId}/season/${seasonNumber}?api_key=${TMDB_API_KEY}&language=fr-FR`);
                 const seasonData = await seasonResponseText.json();
@@ -130,7 +121,6 @@ async function extractEpisodes(url) {
     }    
 }
 
-// --- 4. EXTRACTION VIDÉO (via NAKIOS API) ---
 async function extractStreamUrl(url) {
     try {
         let streams = [];
@@ -139,7 +129,6 @@ async function extractStreamUrl(url) {
         let episodeNumber = "";
         let isMovie = url.includes('movie');
 
-        // Récupération des IDs depuis le href
         if (isMovie) {
             const parts = url.split('/');
             showId = parts[0]; 
@@ -150,7 +139,6 @@ async function extractStreamUrl(url) {
             episodeNumber = parts[2];  
         }
 
-        // Requête à l'API Nakios
         let apiUrl = "";
         if (isMovie) {
             apiUrl = `https://api.nakios.site/api/sources/movie/${showId}`;
@@ -173,25 +161,21 @@ async function extractStreamUrl(url) {
             return JSON.stringify({ streams: [], subtitles: "" });
         }
         
-        // --- NOUVEAU : FOUILLE TRÈS INTELLIGENTE DU JSON ---
         let rawStreams = [];
         
         function findStreams(obj, currentName = "Serveur Nakios") {
             if (obj === null || typeof obj !== 'object') return;
             
-            // Si c'est un tableau (ex: une liste de serveurs), on fouille chaque élément
             if (Array.isArray(obj)) {
                 obj.forEach(item => findStreams(item, currentName));
                 return;
             }
             
-            // Si on est dans un objet, on cherche un nom ou une langue potentielle
             let name = obj.name || obj.title || obj.server || obj.language || obj.lang || currentName;
             
             for (const [key, value] of Object.entries(obj)) {
                 let passName = name;
-                
-                // Si la clé s'appelle "VF" ou "VOSTFR", on l'utilise directement comme nom !
+
                 if (["VF", "VOSTFR", "VFF", "VFQ", "FRENCH", "ENGLISH"].includes(key.toUpperCase())) {
                     passName = key.toUpperCase();
                 }
@@ -202,22 +186,18 @@ async function extractStreamUrl(url) {
                     
                     if (isVideoUrl || isApiUrl) {
                         let finalName = passName;
-                        // On ajoute la qualité si elle est précisée (ex: "VF - 1080p")
                         if (obj.quality) finalName += ` - ${obj.quality}`;
                         
                         rawStreams.push({ url: value, name: finalName });
                     }
                 } else if (typeof value === 'object') {
-                    // On continue de creuser plus profond dans le JSON
                     findStreams(value, passName);
                 }
             }
         }
 
-        // On lance la recherche sur tout le JSON
         findStreams(data);
 
-        // On supprime les doublons basés sur l'URL
         let uniqueStreams = [];
         let seenUrls = new Set();
         for (let item of rawStreams) {
@@ -227,7 +207,6 @@ async function extractStreamUrl(url) {
             }
         }
         
-        // Construction des streams finaux avec le Proxy
         for (let item of uniqueStreams) {
             let finalUrl = item.url;
             
@@ -238,7 +217,7 @@ async function extractStreamUrl(url) {
             }
 
             streams.push({
-                title: item.name, // <-- LE VRAI NOM DU SERVEUR EST INJECTÉ ICI
+                title: item.name, 
                 streamUrl: finalUrl,
                 headers: {
                     "Origin": "https://nakios.site",
@@ -255,7 +234,6 @@ async function extractStreamUrl(url) {
     }
 }
 
-// --- 5. OUTIL SORA FETCH ---
 async function soraFetch(url, options = { headers: {}, method: 'GET', body: null, encoding: 'utf-8' }) {
     try {
         if (typeof fetchv2 !== 'undefined') {
